@@ -1,0 +1,2 @@
+# SpendWise
+Finance management application
