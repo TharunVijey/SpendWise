@@ -6,7 +6,7 @@ WORKDIR /app
 
 COPY spendwise/ .
 
-RUN mvn clean package -DskipTests
+RUN mvn -s settings.xml clean package -DskipTests
 
 # Runtime stage
 FROM eclipse-temurin:21-jre
