@@ -1,6 +1,9 @@
 
 package com.tharun.spendwise.entity;
 
+import java.math.BigDecimal;
+
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -17,17 +20,18 @@ public class SavingsSettings {
     private Long id;
 
     @PositiveOrZero(message = "Opening balance cannot be negative")
-    private double openingBalance;
+    @Column(precision = 19, scale = 2)
+    private BigDecimal openingBalance;
 
     public Long getId() {
         return id;
     }
 
-    public double getOpeningBalance() {
+    public BigDecimal getOpeningBalance() {
         return openingBalance;
     }
 
-    public void setOpeningBalance(double openingBalance) {
+    public void setOpeningBalance(BigDecimal openingBalance) {
         this.openingBalance = openingBalance;
     }
 }

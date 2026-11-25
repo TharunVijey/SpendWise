@@ -1,8 +1,10 @@
 
 package com.tharun.spendwise.entity;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -24,7 +26,8 @@ public class Income {
     private String title;
 
     @Positive(message = "Amount must be greater than zero")
-    private double amount;
+    @Column(precision = 19, scale = 2)
+    private BigDecimal amount;
 
     @NotBlank(message = "Income source is required")
     private String source;
@@ -48,11 +51,11 @@ public class Income {
         this.title = title;
     }
 
-    public double getAmount() {
+    public BigDecimal getAmount() {
         return amount;
     }
 
-    public void setAmount(double amount) {
+    public void setAmount(BigDecimal amount) {
         this.amount = amount;
     }
 

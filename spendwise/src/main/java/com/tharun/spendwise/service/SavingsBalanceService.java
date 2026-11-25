@@ -1,6 +1,7 @@
 
 package com.tharun.spendwise.service;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -19,7 +20,6 @@ public class SavingsBalanceService {
     public SavingsBalanceService(
             SavingsRepository savingsRepository,
             SavingsSettingsRepository settingsRepository) {
-
         this.savingsRepository = savingsRepository;
         this.settingsRepository = settingsRepository;
     }
@@ -28,67 +28,49 @@ public class SavingsBalanceService {
 
         List<Savings> transactions = savingsRepository.findAll();
 
-        double openingBalance = settingsRepository.findAll()
-                .stream()
+        BigDecimal openingBalance = settingsRepository.findAll().stream()
                 .findFirst()
                 .map(SavingsSettings::getOpeningBalance)
-                .orElse(0.0);
+                .orElse(BigDecimal.ZERO);
 
-        double totalDeposits = transactions.stream()
+        BigDecimal totalDeposits = transactions.stream()
                 .filter(s -> "DEPOSIT".equalsIgnoreCase(s.getType()))
-                .mapToDouble(Savings::getAmount)
-                .sum();
+                .map(Savings::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        double totalWithdrawals = transactions.stream()
+        BigDecimal totalWithdrawals = transactions.stream()
                 .filter(s -> "WITHDRAWAL".equalsIgnoreCase(s.getType()))
-                .mapToDouble(Savings::getAmount)
-                .sum();
+                .map(Savings::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        double currentBalance = openingBalance
-                + totalDeposits
-                - totalWithdrawals;
+        BigDecimal currentBalance = openingBalance
+                .add(totalDeposits)
+                .subtract(totalWithdrawals);
 
-        return new SavingsBalance(
-                openingBalance,
-                totalDeposits,
-                totalWithdrawals,
-                currentBalance
-        );
+        return new SavingsBalance(openingBalance, totalDeposits,
+                totalWithdrawals, currentBalance);
     }
 
     public static class SavingsBalance {
 
-        private final double openingBalance;
-        private final double totalDeposits;
-        private final double totalWithdrawals;
-        private final double currentBalance;
+        private final BigDecimal openingBalance;
+        private final BigDecimal totalDeposits;
+        private final BigDecimal totalWithdrawals;
+        private final BigDecimal currentBalance;
 
-        public SavingsBalance(
-                double openingBalance,
-                double totalDeposits,
-                double totalWithdrawals,
-                double currentBalance) {
-
+        public SavingsBalance(BigDecimal openingBalance,
+                BigDecimal totalDeposits,
+                BigDecimal totalWithdrawals,
+                BigDecimal currentBalance) {
             this.openingBalance = openingBalance;
             this.totalDeposits = totalDeposits;
             this.totalWithdrawals = totalWithdrawals;
             this.currentBalance = currentBalance;
         }
 
-        public double getOpeningBalance() {
-            return openingBalance;
-        }
-
-        public double getTotalDeposits() {
-            return totalDeposits;
-        }
-
-        public double getTotalWithdrawals() {
-            return totalWithdrawals;
-        }
-
-        public double getCurrentBalance() {
-            return currentBalance;
-        }
+        public BigDecimal getOpeningBalance() { return openingBalance; }
+        public BigDecimal getTotalDeposits() { return totalDeposits; }
+        public BigDecimal getTotalWithdrawals() { return totalWithdrawals; }
+        public BigDecimal getCurrentBalance() { return currentBalance; }
     }
 }

@@ -1,6 +1,7 @@
 
 package com.tharun.spendwise.service;
 
+import java.math.BigDecimal;
 import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.util.List;
@@ -24,11 +25,9 @@ public class YearlySummaryService {
     private final ExpenseRepository expenseRepository;
     private final SavingsRepository savingsRepository;
 
-    public YearlySummaryService(
-            IncomeRepository incomeRepository,
+    public YearlySummaryService(IncomeRepository incomeRepository,
             ExpenseRepository expenseRepository,
             SavingsRepository savingsRepository) {
-
         this.incomeRepository = incomeRepository;
         this.expenseRepository = expenseRepository;
         this.savingsRepository = savingsRepository;
@@ -43,10 +42,7 @@ public class YearlySummaryService {
             startDate = LocalDate.of(year, 1, 1);
             endDate = LocalDate.of(year, 12, 31);
         } catch (DateTimeException exception) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Invalid year"
-            );
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid year");
         }
 
         List<Income> incomes =
@@ -58,33 +54,27 @@ public class YearlySummaryService {
         List<Savings> savings =
                 savingsRepository.findBySavingsDateBetween(startDate, endDate);
 
-        double totalIncome = incomes.stream()
-                .mapToDouble(Income::getAmount)
-                .sum();
+        BigDecimal totalIncome = incomes.stream()
+                .map(Income::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        double totalExpenses = expenses.stream()
-                .mapToDouble(Expense::getAmount)
-                .sum();
+        BigDecimal totalExpenses = expenses.stream()
+                .map(Expense::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        double savingsDeposits = savings.stream()
+        BigDecimal savingsDeposits = savings.stream()
                 .filter(s -> "DEPOSIT".equalsIgnoreCase(s.getType()))
-                .mapToDouble(Savings::getAmount)
-                .sum();
+                .map(Savings::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        double savingsWithdrawals = savings.stream()
+        BigDecimal savingsWithdrawals = savings.stream()
                 .filter(s -> "WITHDRAWAL".equalsIgnoreCase(s.getType()))
-                .mapToDouble(Savings::getAmount)
-                .sum();
+                .map(Savings::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        double yearlySurplus = totalIncome - totalExpenses;
+        BigDecimal yearlySurplus = totalIncome.subtract(totalExpenses);
 
-        return new YearlySummary(
-                year,
-                totalIncome,
-                totalExpenses,
-                yearlySurplus,
-                savingsDeposits,
-                savingsWithdrawals
-        );
+        return new YearlySummary(year, totalIncome, totalExpenses,
+                yearlySurplus, savingsDeposits, savingsWithdrawals);
     }
 }

@@ -1,22 +1,20 @@
 
 package com.tharun.spendwise.dto;
 
+import java.math.BigDecimal;
+
 public class YearlySummary {
 
     private final int year;
-    private final double totalIncome;
-    private final double totalExpenses;
-    private final double yearlySurplus;
-    private final double savingsDeposits;
-    private final double savingsWithdrawals;
+    private final BigDecimal totalIncome;
+    private final BigDecimal totalExpenses;
+    private final BigDecimal yearlySurplus;
+    private final BigDecimal savingsDeposits;
+    private final BigDecimal savingsWithdrawals;
 
-    public YearlySummary(
-            int year,
-            double totalIncome,
-            double totalExpenses,
-            double yearlySurplus,
-            double savingsDeposits,
-            double savingsWithdrawals) {
+    public YearlySummary(int year, BigDecimal totalIncome,
+            BigDecimal totalExpenses, BigDecimal yearlySurplus,
+            BigDecimal savingsDeposits, BigDecimal savingsWithdrawals) {
 
         this.year = year;
         this.totalIncome = totalIncome;
@@ -26,27 +24,10 @@ public class YearlySummary {
         this.savingsWithdrawals = savingsWithdrawals;
     }
 
-    public int getYear() {
-        return year;
-    }
-
-    public double getTotalIncome() {
-        return totalIncome;
-    }
-
-    public double getTotalExpenses() {
-        return totalExpenses;
-    }
-
-    public double getYearlySurplus() {
-        return yearlySurplus;
-    }
-
-    public double getSavingsDeposits() {
-        return savingsDeposits;
-    }
-
-    public double getSavingsWithdrawals() {
-        return savingsWithdrawals;
-    }
+    public int getYear() { return year; }
+    public BigDecimal getTotalIncome() { return totalIncome; }
+    public BigDecimal getTotalExpenses() { return totalExpenses; }
+    public BigDecimal getYearlySurplus() { return yearlySurplus; }
+    public BigDecimal getSavingsDeposits() { return savingsDeposits; }
+    public BigDecimal getSavingsWithdrawals() { return savingsWithdrawals; }
 }

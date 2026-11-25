@@ -1,6 +1,8 @@
 
 package com.tharun.spendwise.service;
 
+import java.math.BigDecimal;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -17,9 +19,9 @@ public class SavingsSettingsService {
         this.settingsRepository = settingsRepository;
     }
 
-    public SavingsSettings setOpeningBalance(double openingBalance) {
+    public SavingsSettings setOpeningBalance(BigDecimal openingBalance) {
 
-        if (openingBalance < 0) {
+        if (openingBalance == null || openingBalance.compareTo(BigDecimal.ZERO) < 0) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Opening balance cannot be negative"
@@ -43,7 +45,7 @@ public class SavingsSettingsService {
                 .findFirst()
                 .orElseGet(() -> {
                     SavingsSettings settings = new SavingsSettings();
-                    settings.setOpeningBalance(0);
+                    settings.setOpeningBalance(BigDecimal.ZERO);
                     return settingsRepository.save(settings);
                 });
     }

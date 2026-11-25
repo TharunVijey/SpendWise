@@ -1,24 +1,24 @@
 
 package com.tharun.spendwise.service;
 
-import com.tharun.spendwise.dto.DashboardSummary;
-import com.tharun.spendwise.entity.Income;
-import com.tharun.spendwise.entity.Expense;
-import com.tharun.spendwise.entity.Savings;
-import com.tharun.spendwise.entity.SavingsSettings;
+import java.math.BigDecimal;
+import java.time.DateTimeException;
+import java.time.LocalDate;
+import java.util.List;
 
-import com.tharun.spendwise.repository.IncomeRepository;
-import com.tharun.spendwise.repository.ExpenseRepository;
-import com.tharun.spendwise.repository.SavingsRepository;
-import com.tharun.spendwise.repository.SavingsSettingsRepository;
-
-import org.springframework.stereotype.Service;
 import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.time.LocalDate;
-import java.time.DateTimeException;
-import java.util.List;
+import com.tharun.spendwise.dto.DashboardSummary;
+import com.tharun.spendwise.entity.Expense;
+import com.tharun.spendwise.entity.Income;
+import com.tharun.spendwise.entity.Savings;
+import com.tharun.spendwise.entity.SavingsSettings;
+import com.tharun.spendwise.repository.ExpenseRepository;
+import com.tharun.spendwise.repository.IncomeRepository;
+import com.tharun.spendwise.repository.SavingsRepository;
+import com.tharun.spendwise.repository.SavingsSettingsRepository;
 
 @Service
 public class DashboardService {
@@ -33,7 +33,6 @@ public class DashboardService {
             ExpenseRepository expenseRepository,
             SavingsRepository savingsRepository,
             SavingsSettingsRepository settingsRepository) {
-
         this.incomeRepository = incomeRepository;
         this.expenseRepository = expenseRepository;
         this.savingsRepository = savingsRepository;
@@ -50,12 +49,9 @@ public class DashboardService {
             endDate = startDate.withDayOfMonth(startDate.lengthOfMonth());
         } catch (DateTimeException exception) {
             throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Invalid year or month"
-            );
+                    HttpStatus.BAD_REQUEST, "Invalid year or month");
         }
 
-        // Fetch transactions for the selected month
         List<Income> incomes =
                 incomeRepository.findByIncomeDateBetween(startDate, endDate);
 
@@ -65,62 +61,49 @@ public class DashboardService {
         List<Savings> monthlySavings =
                 savingsRepository.findBySavingsDateBetween(startDate, endDate);
 
-        // Calculate monthly income
-        double totalIncome = incomes.stream()
-                .mapToDouble(Income::getAmount)
-                .sum();
+        BigDecimal totalIncome = incomes.stream()
+                .map(Income::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Calculate monthly expenses
-        double totalExpenses = expenses.stream()
-                .mapToDouble(Expense::getAmount)
-                .sum();
+        BigDecimal totalExpenses = expenses.stream()
+                .map(Expense::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Calculate monthly savings deposits
-        double savingsDeposits = monthlySavings.stream()
+        BigDecimal savingsDeposits = monthlySavings.stream()
                 .filter(s -> "DEPOSIT".equalsIgnoreCase(s.getType()))
-                .mapToDouble(Savings::getAmount)
-                .sum();
+                .map(Savings::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Calculate monthly savings withdrawals
-        double savingsWithdrawals = monthlySavings.stream()
+        BigDecimal savingsWithdrawals = monthlySavings.stream()
                 .filter(s -> "WITHDRAWAL".equalsIgnoreCase(s.getType()))
-                .mapToDouble(Savings::getAmount)
-                .sum();
+                .map(Savings::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Monthly surplus = income - expenses
-        double monthlySurplus = totalIncome - totalExpenses;
+        BigDecimal monthlySurplus = totalIncome.subtract(totalExpenses);
 
-        // Calculate overall savings balance
         List<Savings> allSavings = savingsRepository.findAll();
 
-        double openingBalance = settingsRepository.findAll()
-                .stream()
+        BigDecimal openingBalance = settingsRepository.findAll().stream()
                 .findFirst()
                 .map(SavingsSettings::getOpeningBalance)
-                .orElse(0.0);
+                .orElse(BigDecimal.ZERO);
 
-        double totalDeposits = allSavings.stream()
+        BigDecimal totalDeposits = allSavings.stream()
                 .filter(s -> "DEPOSIT".equalsIgnoreCase(s.getType()))
-                .mapToDouble(Savings::getAmount)
-                .sum();
+                .map(Savings::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        double totalWithdrawals = allSavings.stream()
+        BigDecimal totalWithdrawals = allSavings.stream()
                 .filter(s -> "WITHDRAWAL".equalsIgnoreCase(s.getType()))
-                .mapToDouble(Savings::getAmount)
-                .sum();
+                .map(Savings::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        double overallSavingsBalance =
-                openingBalance + totalDeposits - totalWithdrawals;
+        BigDecimal overallSavingsBalance = openingBalance
+                .add(totalDeposits)
+                .subtract(totalWithdrawals);
 
-        return new DashboardSummary(
-                year,
-                month,
-                totalIncome,
-                totalExpenses,
-                monthlySurplus,
-                savingsDeposits,
-                savingsWithdrawals,
-                overallSavingsBalance
-        );
+        return new DashboardSummary(year, month, totalIncome,
+                totalExpenses, monthlySurplus, savingsDeposits,
+                savingsWithdrawals, overallSavingsBalance);
     }
 }

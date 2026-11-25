@@ -1,10 +1,14 @@
 
 package com.tharun.spendwise.service;
 
+import java.math.BigDecimal;
+import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.tharun.spendwise.dto.MonthlySummary;
 import com.tharun.spendwise.entity.Expense;
@@ -33,10 +37,20 @@ public class MonthlySummaryService {
 
     public MonthlySummary getMonthlySummary(int year, int month) {
 
-        LocalDate startDate = LocalDate.of(year, month, 1);
-        LocalDate endDate = startDate.withDayOfMonth(
-                startDate.lengthOfMonth()
-        );
+        LocalDate startDate;
+        LocalDate endDate;
+
+        try {
+            startDate = LocalDate.of(year, month, 1);
+            endDate = startDate.withDayOfMonth(startDate.lengthOfMonth());
+
+        } catch (DateTimeException exception) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Invalid year or month. Please provide a valid date."
+            );
+        }
 
         List<Income> incomes =
                 incomeRepository.findByIncomeDateBetween(startDate, endDate);
@@ -47,25 +61,25 @@ public class MonthlySummaryService {
         List<Savings> savings =
                 savingsRepository.findBySavingsDateBetween(startDate, endDate);
 
-        double totalIncome = incomes.stream()
-                .mapToDouble(Income::getAmount)
-                .sum();
+        BigDecimal totalIncome = incomes.stream()
+                .map(Income::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        double totalExpenses = expenses.stream()
-                .mapToDouble(Expense::getAmount)
-                .sum();
+        BigDecimal totalExpenses = expenses.stream()
+                .map(Expense::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        double savingsDeposits = savings.stream()
+        BigDecimal savingsDeposits = savings.stream()
                 .filter(s -> "DEPOSIT".equalsIgnoreCase(s.getType()))
-                .mapToDouble(Savings::getAmount)
-                .sum();
+                .map(Savings::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        double savingsWithdrawals = savings.stream()
+        BigDecimal savingsWithdrawals = savings.stream()
                 .filter(s -> "WITHDRAWAL".equalsIgnoreCase(s.getType()))
-                .mapToDouble(Savings::getAmount)
-                .sum();
+                .map(Savings::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        double monthlySurplus = totalIncome - totalExpenses;
+        BigDecimal monthlySurplus = totalIncome.subtract(totalExpenses);
 
         return new MonthlySummary(
                 year,
