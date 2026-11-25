@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from 'react'
+import { apiRequest } from '../api'
 
 const money = (value) =>
   new Intl.NumberFormat('en-IN', {
@@ -24,19 +25,17 @@ function Dashboard() {
         setLoading(true)
         setError('')
 
-        const responses = await Promise.all([
-          fetch(`/api/dashboard?year=${year}&month=${month}`),
-          fetch('/api/incomes'),
-          fetch('/api/expenses'),
-          fetch('/api/savings')
-        ])
-
-        if (responses.some(response => !response.ok)) {
-          throw new Error('Unable to load financial data.')
-        }
-
-        const [dashboardData, incomes, expenses, savings] =
-          await Promise.all(responses.map(response => response.json()))
+        const [
+  dashboardData,
+  incomes,
+  expenses,
+  savings
+] = await Promise.all([
+  apiRequest(`/api/dashboard?year=${year}&month=${month}`),
+  apiRequest('/api/incomes'),
+  apiRequest('/api/expenses'),
+  apiRequest('/api/savings')
+])
 
         const combined = [
           ...incomes.map(item => ({

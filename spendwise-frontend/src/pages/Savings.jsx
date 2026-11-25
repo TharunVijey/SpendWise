@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from 'react'
+import { apiRequest } from '../api'
 
 const emptyForm = {
   amount: '',
@@ -31,44 +32,7 @@ function Savings() {
       maximumFractionDigits: 2
     }).format(Number(value || 0))
 
-  
-async function apiRequest(url, options = {}) {
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers
-    }
-  })
-
-  const responseText = await response.text()
-
-  if (!response.ok) {
-    let message = 'Something went wrong.'
-
-    if (responseText) {
-      try {
-        const data = JSON.parse(responseText)
-        message = data.message || data.detail || data.error || message
-      } catch {
-        message = responseText
-      }
-    }
-
-    throw new Error(message)
-  }
-
-  if (!responseText) return null
-
-  // Support both JSON and plain-text backend responses.
-  try {
-    return JSON.parse(responseText)
-  } catch {
-    return responseText
-  }
-}
-
-
+  // Load savings transactions, balance and opening balance settings
   async function loadSavings() {
     setLoading(true)
     setError('')
@@ -96,6 +60,7 @@ async function apiRequest(url, options = {}) {
 
   function handleFormChange(event) {
     const { name, value } = event.target
+
     setForm((previous) => ({
       ...previous,
       [name]: value
@@ -107,133 +72,139 @@ async function apiRequest(url, options = {}) {
     setEditingId(null)
   }
 
-  
-async function handleSubmit(event) {
-  event.preventDefault()
-  setError('')
-  setSuccess('')
+  // Add or update a savings transaction
+  async function handleSubmit(event) {
+    event.preventDefault()
+    setError('')
+    setSuccess('')
 
-  const amount = Number(form.amount)
+    const amount = Number(form.amount)
 
-  // Check available balance before submitting a withdrawal.
-  if (form.type === 'WITHDRAWAL') {
-    let availableBalance = Number(balance.currentBalance || 0)
+    // Check available balance before submitting a withdrawal.
+    if (form.type === 'WITHDRAWAL') {
+      let availableBalance = Number(balance.currentBalance || 0)
 
-    // When editing, exclude the old transaction from the calculation.
-    if (editingId !== null) {
-      const oldTransaction = transactions.find(
-        (transaction) => transaction.id === editingId
-      )
+      // When editing, exclude the old transaction from the calculation.
+      if (editingId !== null) {
+        const oldTransaction = transactions.find(
+          (transaction) => transaction.id === editingId
+        )
 
-      if (oldTransaction) {
-        if (oldTransaction.type === 'DEPOSIT') {
-          availableBalance -= Number(oldTransaction.amount)
-        } else if (oldTransaction.type === 'WITHDRAWAL') {
-          availableBalance += Number(oldTransaction.amount)
+        if (oldTransaction) {
+          if (oldTransaction.type === 'DEPOSIT') {
+            availableBalance -= Number(oldTransaction.amount)
+          } else if (oldTransaction.type === 'WITHDRAWAL') {
+            availableBalance += Number(oldTransaction.amount)
+          }
         }
+      }
+
+      if (amount > availableBalance + 0.001) {
+        setError(
+          `Insufficient savings! You can withdraw up to ${formatMoney(
+            Math.max(0, availableBalance)
+          )}.`
+        )
+        return
       }
     }
 
-    if (amount > availableBalance + 0.001) {
+    const payload = {
+      amount,
+      type: form.type,
+      savingsDate: form.savingsDate,
+      notes: form.notes
+    }
+
+    try {
+      if (editingId !== null) {
+        await apiRequest(`/api/savings/${editingId}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload)
+        })
+
+        setSuccess('Savings transaction updated successfully.')
+      } else {
+        await apiRequest('/api/savings', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        })
+
+        setSuccess('Savings transaction added successfully.')
+      }
+
+      resetForm()
+      await loadSavings()
+    } catch (err) {
       setError(
-        `Insufficient savings! You can withdraw up to ${formatMoney(
-          Math.max(0, availableBalance)
-        )}.`
+        err.message === 'Bad Request'
+          ? 'Unable to complete this transaction. Please check the amount and available balance.'
+          : err.message
       )
-      return
     }
   }
-
-  const payload = {
-    amount,
-    type: form.type,
-    savingsDate: form.savingsDate,
-    notes: form.notes
-  }
-
-  try {
-    if (editingId !== null) {
-      await apiRequest(`/api/savings/${editingId}`, {
-        method: 'PUT',
-        body: JSON.stringify(payload)
-      })
-      setSuccess('Savings transaction updated successfully.')
-    } else {
-      await apiRequest('/api/savings', {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      })
-      setSuccess('Savings transaction added successfully.')
-    }
-
-    resetForm()
-    await loadSavings()
-  } catch (err) {
-    setError(
-      err.message === 'Bad Request'
-        ? 'Unable to complete this transaction. Please check the amount and available balance.'
-        : err.message
-    )
-  }
-}
-
 
   function handleEdit(transaction) {
     setEditingId(transaction.id)
+
     setForm({
       amount: String(transaction.amount),
       type: transaction.type,
       savingsDate: transaction.savingsDate,
       notes: transaction.notes || ''
     })
+
     setError('')
     setSuccess('')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    })
   }
 
-
-
-async function handleDelete(id) {
-  const confirmed = window.confirm(
-    'Are you sure you want to delete this savings transaction?'
-  )
-
-  if (!confirmed) return
-
-  setError('')
-  setSuccess('')
-
-  try {
-    // Delete transaction in the backend.
-    await apiRequest(`/api/savings/${id}`, {
-      method: 'DELETE'
-    })
-
-    // Immediately update the transaction list.
-    setTransactions((previous) =>
-      previous.filter((transaction) => transaction.id !== id)
+  // Delete a savings transaction
+  async function handleDelete(id) {
+    const confirmed = window.confirm(
+      'Are you sure you want to delete this savings transaction?'
     )
 
-    if (editingId === id) {
-      resetForm()
-    }
+    if (!confirmed) return
 
-    setSuccess('Transaction deleted successfully.')
+    setError('')
+    setSuccess('')
 
-    // Refresh balance separately.
     try {
-      const updatedBalance = await apiRequest('/api/savings/balance')
-      setBalance(updatedBalance)
-    } catch {
-      setError(
-        'Transaction deleted successfully, but balance refresh failed. Please refresh the page.'
-      )
-    }
-  } catch (err) {
-    setError(err.message || 'Unable to delete transaction.')
-  }
-}
+      await apiRequest(`/api/savings/${id}`, {
+        method: 'DELETE'
+      })
 
+      // Immediately update the transaction list.
+      setTransactions((previous) =>
+        previous.filter((transaction) => transaction.id !== id)
+      )
+
+      if (editingId === id) {
+        resetForm()
+      }
+
+      setSuccess('Transaction deleted successfully.')
+
+      // Refresh balance separately.
+      try {
+        const updatedBalance = await apiRequest('/api/savings/balance')
+        setBalance(updatedBalance)
+      } catch {
+        setError(
+          'Transaction deleted successfully, but balance refresh failed. Please refresh the page.'
+        )
+      }
+    } catch (err) {
+      setError(err.message || 'Unable to delete transaction.')
+    }
+  }
+
+  // Update opening savings balance
   async function handleOpeningBalanceSubmit(event) {
     event.preventDefault()
     setError('')
@@ -252,6 +223,7 @@ async function handleDelete(id) {
 
       setOpeningBalance(String(result.openingBalance ?? openingBalance))
       setSuccess('Opening balance updated successfully.')
+
       await loadSavings()
     } catch (err) {
       setError(err.message || 'Unable to update opening balance.')
@@ -260,6 +232,7 @@ async function handleDelete(id) {
 
   return (
     <div className="savings-page">
+
       <div className="breadcrumb">Workspace / Savings</div>
 
       <div className="savings-heading">
@@ -275,6 +248,7 @@ async function handleDelete(id) {
       {success && <div className="savings-alert success">{success}</div>}
 
       <div className="savings-summary-grid">
+
         <div className="savings-summary-card">
           <span>Opening Balance</span>
           <h2>{formatMoney(balance.openingBalance)}</h2>
@@ -302,9 +276,11 @@ async function handleDelete(id) {
           <h2>{formatMoney(balance.currentBalance)}</h2>
           <small>Your available savings balance</small>
         </div>
+
       </div>
 
       <div className="savings-settings-panel">
+
         <div>
           <h2>Opening Balance Settings</h2>
           <p>Enter the savings you had before starting SpendWise.</p>
@@ -323,16 +299,24 @@ async function handleDelete(id) {
             placeholder="Enter opening balance"
             required
           />
+
           <button type="submit" className="primary-button">
             Update Balance
           </button>
         </form>
+
       </div>
 
       <div className="savings-form-panel">
+
         <div className="savings-section-heading">
           <div>
-            <h2>{editingId !== null ? 'Edit Transaction' : 'Add Savings Transaction'}</h2>
+            <h2>
+              {editingId !== null
+                ? 'Edit Transaction'
+                : 'Add Savings Transaction'}
+            </h2>
+
             <p>
               {editingId !== null
                 ? 'Update the selected savings transaction.'
@@ -342,9 +326,12 @@ async function handleDelete(id) {
         </div>
 
         <form className="savings-form" onSubmit={handleSubmit}>
+
           <div className="savings-form-grid">
+
             <div className="form-group">
               <label>Transaction Type</label>
+
               <select
                 name="type"
                 value={form.type}
@@ -358,6 +345,7 @@ async function handleDelete(id) {
 
             <div className="form-group">
               <label>Amount (₹)</label>
+
               <input
                 type="number"
                 name="amount"
@@ -372,6 +360,7 @@ async function handleDelete(id) {
 
             <div className="form-group">
               <label>Date</label>
+
               <input
                 type="date"
                 name="savingsDate"
@@ -383,6 +372,7 @@ async function handleDelete(id) {
 
             <div className="form-group">
               <label>Notes</label>
+
               <input
                 type="text"
                 name="notes"
@@ -391,9 +381,11 @@ async function handleDelete(id) {
                 placeholder="Optional notes"
               />
             </div>
+
           </div>
 
           <div className="savings-form-actions">
+
             <button type="submit" className="primary-button">
               {editingId !== null ? 'Save Changes' : 'Add Transaction'}
             </button>
@@ -407,16 +399,20 @@ async function handleDelete(id) {
                 Cancel
               </button>
             )}
+
           </div>
+
         </form>
       </div>
 
       <div className="savings-table-panel">
+
         <div className="savings-section-heading">
           <div>
             <h2>Savings Transactions</h2>
             <p>All your recorded deposits and withdrawals.</p>
           </div>
+
           <span className="transaction-count">
             {transactions.length} transactions
           </span>
@@ -430,7 +426,9 @@ async function handleDelete(id) {
           </p>
         ) : (
           <div className="table-wrapper">
+
             <table className="savings-table">
+
               <thead>
                 <tr>
                   <th>Date</th>
@@ -440,6 +438,7 @@ async function handleDelete(id) {
                   <th>Actions</th>
                 </tr>
               </thead>
+
               <tbody>
                 {[...transactions]
                   .sort((a, b) =>
@@ -447,7 +446,9 @@ async function handleDelete(id) {
                   )
                   .map((transaction) => (
                     <tr key={transaction.id}>
+
                       <td>{transaction.savingsDate}</td>
+
                       <td>
                         <span
                           className={`savings-type ${
@@ -459,22 +460,29 @@ async function handleDelete(id) {
                           {transaction.type}
                         </span>
                       </td>
-                      <td className={
-                        transaction.type === 'DEPOSIT'
-                          ? 'deposit-value'
-                          : 'withdrawal-value'
-                      }>
+
+                      <td
+                        className={
+                          transaction.type === 'DEPOSIT'
+                            ? 'deposit-value'
+                            : 'withdrawal-value'
+                        }
+                      >
                         {formatMoney(transaction.amount)}
                       </td>
+
                       <td>{transaction.notes || '—'}</td>
+
                       <td>
                         <div className="savings-actions">
+
                           <button
                             type="button"
                             onClick={() => handleEdit(transaction)}
                           >
                             Edit
                           </button>
+
                           <button
                             type="button"
                             className="delete-action"
@@ -482,15 +490,21 @@ async function handleDelete(id) {
                           >
                             Delete
                           </button>
+
                         </div>
                       </td>
+
                     </tr>
                   ))}
               </tbody>
+
             </table>
+
           </div>
         )}
+
       </div>
+
     </div>
   )
 }

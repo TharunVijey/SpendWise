@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from 'react'
+import { apiRequest } from '../api'
 
 const emptyForm = {
   title: '',
@@ -24,16 +25,13 @@ function Income() {
       maximumFractionDigits: 2
     })
 
+  // Fetch all income transactions
   const fetchIncomes = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/incomes')
 
-      if (!response.ok) {
-        throw new Error('Unable to load income transactions.')
-      }
+      const data = await apiRequest('/api/incomes')
 
-      const data = await response.json()
       setIncomes(data)
       setError('')
     } catch (err) {
@@ -75,6 +73,7 @@ function Income() {
     setShowForm(true)
   }
 
+  // Add or update income
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
@@ -92,18 +91,10 @@ function Income() {
         ? `/api/incomes/${editingId}`
         : '/api/incomes'
 
-      const response = await fetch(url, {
+      await apiRequest(url, {
         method: editingId ? 'PUT' : 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify(payload)
       })
-
-      if (!response.ok) {
-        const message = await response.text()
-        throw new Error(message || 'Unable to save income.')
-      }
 
       await fetchIncomes()
       setShowForm(false)
@@ -114,19 +105,16 @@ function Income() {
     }
   }
 
+  // Delete income
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this income?')) {
       return
     }
 
     try {
-      const response = await fetch(`/api/incomes/${id}`, {
+      await apiRequest(`/api/incomes/${id}`, {
         method: 'DELETE'
       })
-
-      if (!response.ok) {
-        throw new Error('Unable to delete income.')
-      }
 
       await fetchIncomes()
     } catch (err) {

@@ -1,5 +1,7 @@
 
 import { useEffect, useState } from 'react'
+import { apiRequest } from '../api'
+
 import {
   ResponsiveContainer,
   BarChart,
@@ -23,6 +25,7 @@ function Reports() {
   const [selectedMonth, setSelectedMonth] = useState(
     String(today.getMonth() + 1)
   )
+
   const [selectedYear, setSelectedYear] = useState(
     String(today.getFullYear())
   )
@@ -40,34 +43,6 @@ function Reports() {
       maximumFractionDigits: 2
     }).format(Number(value || 0))
 
-  async function fetchReport(url) {
-    const response = await fetch(url)
-    const responseText = await response.text()
-
-    if (!response.ok) {
-      let message = 'Unable to load report.'
-
-      if (responseText) {
-        try {
-          const data = JSON.parse(responseText)
-          message = data.message || data.detail || data.error || message
-        } catch {
-          message = responseText
-        }
-      }
-
-      throw new Error(message)
-    }
-
-    if (!responseText) return null
-
-    try {
-      return JSON.parse(responseText)
-    } catch {
-      throw new Error('The server returned an invalid report response.')
-    }
-  }
-
   useEffect(() => {
     let cancelled = false
 
@@ -80,15 +55,17 @@ function Reports() {
         const month = Number(selectedMonth)
 
         const [monthlyData, yearlyData, trendData] = await Promise.all([
-          fetchReport(
+          apiRequest(
             `/api/reports/monthly?year=${year}&month=${month}`
           ),
-          fetchReport(
+
+          apiRequest(
             `/api/reports/yearly?year=${year}`
           ),
+
           Promise.all(
             monthNames.map((_, index) =>
-              fetchReport(
+              apiRequest(
                 `/api/reports/monthly?year=${year}&month=${index + 1}`
               )
             )
@@ -108,6 +85,7 @@ function Reports() {
         }))
 
         setMonthlyTrend(formattedTrend)
+
       } catch (err) {
         if (!cancelled) {
           setError(err.message || 'Unable to load reports.')
@@ -135,6 +113,7 @@ function Reports() {
 
   return (
     <div className="reports-page">
+
       <div className="breadcrumb">Workspace / Reports</div>
 
       <div className="reports-heading">
@@ -147,8 +126,10 @@ function Reports() {
       </div>
 
       <div className="reports-filter-panel">
+
         <div>
           <label htmlFor="report-month">Month</label>
+
           <select
             id="report-month"
             value={selectedMonth}
@@ -164,6 +145,7 @@ function Reports() {
 
         <div>
           <label htmlFor="report-year">Year</label>
+
           <select
             id="report-year"
             value={selectedYear}
@@ -176,6 +158,7 @@ function Reports() {
             ))}
           </select>
         </div>
+
       </div>
 
       {error && (
@@ -185,10 +168,15 @@ function Reports() {
       )}
 
       {loading ? (
-        <div className="reports-loading">Loading your reports...</div>
+        <div className="reports-loading">
+          Loading your reports...
+        </div>
       ) : monthlyReport && yearlyReport ? (
         <>
+
+          {/* Monthly Summary */}
           <section className="reports-section">
+
             <div className="reports-section-heading">
               <div>
                 <h2>{selectedMonthName} {selectedYear}</h2>
@@ -197,6 +185,7 @@ function Reports() {
             </div>
 
             <div className="reports-summary-grid">
+
               <div className="report-card">
                 <span>Total Income</span>
                 <h3 className="report-income">
@@ -232,10 +221,13 @@ function Reports() {
                   {formatMoney(monthlyReport.savingsWithdrawals)}
                 </h3>
               </div>
+
             </div>
           </section>
 
+          {/* Yearly Summary */}
           <section className="reports-section">
+
             <div className="reports-section-heading">
               <div>
                 <h2>{selectedYear} Yearly Summary</h2>
@@ -244,6 +236,7 @@ function Reports() {
             </div>
 
             <div className="reports-summary-grid yearly-summary-grid">
+
               <div className="report-card">
                 <span>Annual Income</span>
                 <h3 className="report-income">
@@ -279,10 +272,13 @@ function Reports() {
                   {formatMoney(yearlyReport.savingsWithdrawals)}
                 </h3>
               </div>
+
             </div>
           </section>
 
+          {/* Income vs Expenses Chart */}
           <section className="reports-chart-panel">
+
             <div className="reports-section-heading">
               <div>
                 <h2>Income vs Expenses</h2>
@@ -291,16 +287,29 @@ function Reports() {
             </div>
 
             {monthlyTrend.length === 0 ? (
-              <p className="reports-empty">No report data available.</p>
+              <p className="reports-empty">
+                No report data available.
+              </p>
             ) : (
               <div className="reports-chart">
+
                 <ResponsiveContainer width="100%" height={330}>
                   <BarChart
                     data={monthlyTrend}
-                    margin={{ top: 10, right: 15, left: 10, bottom: 5 }}
+                    margin={{
+                      top: 10,
+                      right: 15,
+                      left: 10,
+                      bottom: 5
+                    }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                    />
+
                     <XAxis dataKey="month" />
+
                     <YAxis
                       tickFormatter={(value) =>
                         value >= 1000
@@ -308,29 +317,38 @@ function Reports() {
                           : `₹${value}`
                       }
                     />
+
                     <Tooltip
                       formatter={(value) => formatMoney(value)}
                     />
+
                     <Legend />
+
                     <Bar
                       dataKey="income"
                       name="Income"
                       fill="#22a477"
                       radius={[5, 5, 0, 0]}
                     />
+
                     <Bar
                       dataKey="expenses"
                       name="Expenses"
                       fill="#e46d75"
                       radius={[5, 5, 0, 0]}
                     />
+
                   </BarChart>
                 </ResponsiveContainer>
+
               </div>
             )}
+
           </section>
 
+          {/* Monthly Surplus Chart */}
           <section className="reports-chart-panel">
+
             <div className="reports-section-heading">
               <div>
                 <h2>Monthly Surplus Trend</h2>
@@ -339,13 +357,24 @@ function Reports() {
             </div>
 
             <div className="reports-chart">
+
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart
                   data={monthlyTrend}
-                  margin={{ top: 10, right: 15, left: 10, bottom: 5 }}
+                  margin={{
+                    top: 10,
+                    right: 15,
+                    left: 10,
+                    bottom: 5
+                  }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                  />
+
                   <XAxis dataKey="month" />
+
                   <YAxis
                     tickFormatter={(value) =>
                       value >= 1000
@@ -353,25 +382,31 @@ function Reports() {
                         : `₹${value}`
                     }
                   />
+
                   <Tooltip
                     formatter={(value) => formatMoney(value)}
                   />
+
                   <Bar
                     dataKey="surplus"
                     name="Monthly Surplus"
                     fill="#8170dc"
                     radius={[5, 5, 0, 0]}
                   />
+
                 </BarChart>
               </ResponsiveContainer>
+
             </div>
           </section>
+
         </>
       ) : (
         <div className="reports-empty">
           No report data available for this period.
         </div>
       )}
+
     </div>
   )
 }

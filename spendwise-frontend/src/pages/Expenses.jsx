@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from 'react'
+import { apiRequest } from '../api'
 import {
   ResponsiveContainer,
   PieChart,
@@ -42,15 +43,16 @@ function Expenses() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [chartType, setChartType] = useState('pie')
+
   const today = new Date()
 
-const [filterMonth, setFilterMonth] = useState(
-  String(today.getMonth() + 1)
-)
+  const [filterMonth, setFilterMonth] = useState(
+    String(today.getMonth() + 1)
+  )
 
-const [filterYear, setFilterYear] = useState(
-  String(today.getFullYear())
-)
+  const [filterYear, setFilterYear] = useState(
+    String(today.getFullYear())
+  )
 
   const formatCurrency = (amount) =>
     Number(amount || 0).toLocaleString('en-IN', {
@@ -59,17 +61,13 @@ const [filterYear, setFilterYear] = useState(
       maximumFractionDigits: 2
     })
 
+  // Fetch all expense transactions
   const fetchExpenses = async () => {
     try {
       setLoading(true)
 
-      const response = await fetch('/api/expenses')
+      const data = await apiRequest('/api/expenses')
 
-      if (!response.ok) {
-        throw new Error('Unable to load expenses.')
-      }
-
-      const data = await response.json()
       setExpenses(data)
       setError('')
     } catch (err) {
@@ -111,6 +109,7 @@ const [filterYear, setFilterYear] = useState(
     setShowForm(true)
   }
 
+  // Add or update expense
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
@@ -128,18 +127,10 @@ const [filterYear, setFilterYear] = useState(
         ? `/api/expenses/${editingId}`
         : '/api/expenses'
 
-      const response = await fetch(url, {
+      await apiRequest(url, {
         method: editingId ? 'PUT' : 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify(payload)
       })
-
-      if (!response.ok) {
-        const message = await response.text()
-        throw new Error(message || 'Unable to save expense.')
-      }
 
       await fetchExpenses()
       setShowForm(false)
@@ -150,19 +141,16 @@ const [filterYear, setFilterYear] = useState(
     }
   }
 
+  // Delete expense
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this expense?')) {
       return
     }
 
     try {
-      const response = await fetch(`/api/expenses/${id}`, {
+      await apiRequest(`/api/expenses/${id}`, {
         method: 'DELETE'
       })
-
-      if (!response.ok) {
-        throw new Error('Unable to delete expense.')
-      }
 
       await fetchExpenses()
     } catch (err) {
@@ -175,28 +163,30 @@ const [filterYear, setFilterYear] = useState(
     0
   )
 
- const filteredExpenses = expenses.filter((expense) => {
-  const date = new Date(`${expense.expenseDate}T00:00:00`)
+  // Filter expenses by selected month and year
+  const filteredExpenses = expenses.filter((expense) => {
+    const date = new Date(`${expense.expenseDate}T00:00:00`)
 
-  return (
-    date.getMonth() + 1 === Number(filterMonth) &&
-    date.getFullYear() === Number(filterYear)
+    return (
+      date.getMonth() + 1 === Number(filterMonth) &&
+      date.getFullYear() === Number(filterYear)
+    )
+  })
+
+  const filteredTotal = filteredExpenses.reduce(
+    (total, expense) => total + Number(expense.amount || 0),
+    0
   )
-})
 
-const filteredTotal = filteredExpenses.reduce(
-  (total, expense) => total + Number(expense.amount || 0),
-  0
-)
+  // Calculate category-wise expenses
+  const categoryTotals = filteredExpenses.reduce((totals, expense) => {
+    const category = expense.category || 'Other'
 
-const categoryTotals = filteredExpenses.reduce((totals, expense) => {
-  const category = expense.category || 'Other'
+    totals[category] =
+      (totals[category] || 0) + Number(expense.amount || 0)
 
-  totals[category] =
-    (totals[category] || 0) + Number(expense.amount || 0)
-
-  return totals
-}, {})
+    return totals
+  }, {})
 
   return (
     <div className="expenses-page">
@@ -426,197 +416,194 @@ const categoryTotals = filteredExpenses.reduce((totals, expense) => {
 
       </div>
 
-      
-<div className="panel category-panel">
+      <div className="panel category-panel">
 
-<div className="chart-heading">
+        <div className="chart-heading">
 
-  <div>
-    <h2>Spending by Category</h2>
-    <p className="summary-description">
-      Category-wise spending for the selected period
-    </p>
-  </div>
+          <div>
+            <h2>Spending by Category</h2>
+            <p className="summary-description">
+              Category-wise spending for the selected period
+            </p>
+          </div>
 
-  <div className="chart-controls">
+          <div className="chart-controls">
 
-    <select
-      className="chart-selector"
-      value={filterMonth}
-      onChange={(e) => setFilterMonth(e.target.value)}
-    >
-      {[
-        ['1', 'January'],
-        ['2', 'February'],
-        ['3', 'March'],
-        ['4', 'April'],
-        ['5', 'May'],
-        ['6', 'June'],
-        ['7', 'July'],
-        ['8', 'August'],
-        ['9', 'September'],
-        ['10', 'October'],
-        ['11', 'November'],
-        ['12', 'December']
-      ].map(([value, label]) => (
-        <option key={value} value={value}>
-          {label}
-        </option>
-      ))}
-    </select>
-
-    <select
-      className="chart-selector"
-      value={filterYear}
-      onChange={(e) => setFilterYear(e.target.value)}
-    >
-      {Array.from(
-        { length: 6 },
-        (_, i) => new Date().getFullYear() - 3 + i
-      ).map((year) => (
-        <option key={year} value={year}>
-          {year}
-        </option>
-      ))}
-    </select>
-
-    <select
-      className="chart-selector"
-      value={chartType}
-      onChange={(e) => setChartType(e.target.value)}
-    >
-      <option value="pie">Pie Chart</option>
-      <option value="donut">Donut Chart</option>
-      <option value="bar">Bar Graph</option>
-    </select>
-
-  </div>
-
-</div>
-
-
-  {Object.keys(categoryTotals).length === 0 ? (
-    <p className="table-message">
-      No expenses recorded for this month.
-    </p>
-  ) : (
-    <div className="chart-container">
-
-      <ResponsiveContainer width="100%" height={330}>
-
-        {chartType === 'bar' ? (
-
-          <BarChart
-            data={Object.entries(categoryTotals).map(
-              ([name, amount]) => ({ name, amount })
-            )}
-            margin={{ top: 15, right: 20, left: 10, bottom: 10 }}
-          >
-            <CartesianGrid
-              strokeDasharray="3 3"
-              vertical={false}
-            />
-
-            <XAxis
-              dataKey="name"
-              tick={{ fontSize: 12 }}
-              interval={0}
-              angle={-15}
-              textAnchor="end"
-              height={55}
-            />
-
-            <YAxis
-              tick={{ fontSize: 12 }}
-              tickFormatter={(value) =>
-                `₹${Number(value).toLocaleString('en-IN')}`
-              }
-            />
-
-            <Tooltip
-              formatter={(value) => [
-                formatCurrency(value),
-                'Amount'
-              ]}
-            />
-
-            <Bar
-              dataKey="amount"
-              name="Expense"
-              fill="#6c5ce7"
-              radius={[6, 6, 0, 0]}
-            />
-          </BarChart>
-
-        ) : (
-
-          <PieChart>
-
-            <Pie
-              data={Object.entries(categoryTotals).map(
-                ([name, amount]) => ({ name, amount })
-              )}
-              dataKey="amount"
-              nameKey="name"
-              cx="50%"
-              cy="48%"
-              outerRadius={110}
-              innerRadius={chartType === 'donut' ? 65 : 0}
-              paddingAngle={3}
-              label={({ name, percent }) =>
-                `${name} ${(percent * 100).toFixed(0)}%`
-              }
+            <select
+              className="chart-selector"
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
             >
-              {Object.entries(categoryTotals).map(
-                ([category], index) => {
-                  const colors = [
-                    '#6c5ce7',
-                    '#22a06b',
-                    '#f0a44b',
-                    '#e45b78',
-                    '#3996cf',
-                    '#9b72cf',
-                    '#45b8ac',
-                    '#e08a43',
-                    '#8b929e'
-                  ]
+              {[
+                ['1', 'January'],
+                ['2', 'February'],
+                ['3', 'March'],
+                ['4', 'April'],
+                ['5', 'May'],
+                ['6', 'June'],
+                ['7', 'July'],
+                ['8', 'August'],
+                ['9', 'September'],
+                ['10', 'October'],
+                ['11', 'November'],
+                ['12', 'December']
+              ].map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
 
-                  return (
-                    <Cell
-                      key={category}
-                      fill={colors[index % colors.length]}
-                    />
-                  )
-                }
+            <select
+              className="chart-selector"
+              value={filterYear}
+              onChange={(e) => setFilterYear(e.target.value)}
+            >
+              {Array.from(
+                { length: 6 },
+                (_, i) => new Date().getFullYear() - 3 + i
+              ).map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="chart-selector"
+              value={chartType}
+              onChange={(e) => setChartType(e.target.value)}
+            >
+              <option value="pie">Pie Chart</option>
+              <option value="donut">Donut Chart</option>
+              <option value="bar">Bar Graph</option>
+            </select>
+
+          </div>
+
+        </div>
+
+        {Object.keys(categoryTotals).length === 0 ? (
+          <p className="table-message">
+            No expenses recorded for this month.
+          </p>
+        ) : (
+          <div className="chart-container">
+
+            <ResponsiveContainer width="100%" height={330}>
+
+              {chartType === 'bar' ? (
+
+                <BarChart
+                  data={Object.entries(categoryTotals).map(
+                    ([name, amount]) => ({ name, amount })
+                  )}
+                  margin={{ top: 15, right: 20, left: 10, bottom: 10 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                  />
+
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 12 }}
+                    interval={0}
+                    angle={-15}
+                    textAnchor="end"
+                    height={55}
+                  />
+
+                  <YAxis
+                    tick={{ fontSize: 12 }}
+                    tickFormatter={(value) =>
+                      `₹${Number(value).toLocaleString('en-IN')}`
+                    }
+                  />
+
+                  <Tooltip
+                    formatter={(value) => [
+                      formatCurrency(value),
+                      'Amount'
+                    ]}
+                  />
+
+                  <Bar
+                    dataKey="amount"
+                    name="Expense"
+                    fill="#6c5ce7"
+                    radius={[6, 6, 0, 0]}
+                  />
+                </BarChart>
+
+              ) : (
+
+                <PieChart>
+
+                  <Pie
+                    data={Object.entries(categoryTotals).map(
+                      ([name, amount]) => ({ name, amount })
+                    )}
+                    dataKey="amount"
+                    nameKey="name"
+                    cx="50%"
+                    cy="48%"
+                    outerRadius={110}
+                    innerRadius={chartType === 'donut' ? 65 : 0}
+                    paddingAngle={3}
+                    label={({ name, percent }) =>
+                      `${name} ${(percent * 100).toFixed(0)}%`
+                    }
+                  >
+                    {Object.entries(categoryTotals).map(
+                      ([category], index) => {
+                        const colors = [
+                          '#6c5ce7',
+                          '#22a06b',
+                          '#f0a44b',
+                          '#e45b78',
+                          '#3996cf',
+                          '#9b72cf',
+                          '#45b8ac',
+                          '#e08a43',
+                          '#8b929e'
+                        ]
+
+                        return (
+                          <Cell
+                            key={category}
+                            fill={colors[index % colors.length]}
+                          />
+                        )
+                      }
+                    )}
+                  </Pie>
+
+                  <Tooltip
+                    formatter={(value) => [
+                      formatCurrency(value),
+                      'Amount'
+                    ]}
+                  />
+
+                  <Legend />
+
+                </PieChart>
+
               )}
-            </Pie>
 
-            <Tooltip
-              formatter={(value) => [
-                formatCurrency(value),
-                'Amount'
-              ]}
-            />
+            </ResponsiveContainer>
 
-            <Legend />
+            {chartType === 'donut' && (
+              <p className="chart-total">
+                Total: {formatCurrency(filteredTotal)}
+              </p>
+            )}
 
-          </PieChart>
-
+          </div>
         )}
 
-      </ResponsiveContainer>
-
-      {chartType === 'donut' && (
-        <p className="chart-total">
-          Total: {formatCurrency(filteredTotal)}
-        </p>
-      )}
-
-    </div>
-  )}
-
-</div>
-
+      </div>
 
     </div>
   )
